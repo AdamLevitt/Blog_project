@@ -1,5 +1,5 @@
 from datetime import date
-from flask import Flask, abort, render_template, redirect, url_for, flash
+from flask import Flask, abort, render_template, redirect, url_for, flash, request
 from flask_bootstrap import Bootstrap5
 from flask_ckeditor import CKEditor
 from flask_gravatar import Gravatar
@@ -14,27 +14,32 @@ from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm
 from datetime import datetime
 from dotenv import load_dotenv
 import os
+import smtplib
 
+#.env variables
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 DB_URI = os.getenv("DB_URI")
+MY_EMAIL = os.getenv("MY_EMAIL")
+EMAIL_PASS = os.getenv("EMAIL_PASS")
+EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")
 
+#Confi Flask (with key), Bootstrap5, CKEditor, and Gravatar
 app = Flask(__name__)
 app.config["SECRET_KEY"] = SECRET_KEY
 ckeditor = CKEditor(app)
 Bootstrap5(app)
-
 gravatar = Gravatar(app, size=100, rating="g", default="retro", force_default=False, force_lower=False, use_ssl=False, base_url=None)
 
+#Setup for Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
-
 
 @login_manager.user_loader
 def load_user(user_id):
     return db.get_or_404(User, user_id)
 
-
+#Grab year for footer
 year = datetime.now().year
 
 
@@ -50,8 +55,7 @@ db.init_app(app)
 
 # CONFIGURE TABLES
 
-
-# Child - BlogPost
+# Table for Blog Postings
 class BlogPost(db.Model):
     __tablename__ = "blog_posts"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -69,7 +73,7 @@ class BlogPost(db.Model):
     comments: Mapped[List["Comment"]] = relationship(back_populates="post")
 
 
-# parent - User
+# Table for Users
 class User(UserMixin, db.Model):
     __tablename__ = "user"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -84,7 +88,7 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f"<User {self.id}: {self.name}>"
 
-
+# Table for Comments
 class Comment(db.Model):
     __tablename__ = "comments"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -104,6 +108,8 @@ with app.app_context():
 
 
 def admin_only(func):
+    """Decorator to restrict a route to only be accessible by the admin user
+    (i.e. the user with id 1)."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         if current_user.id == 1:
@@ -260,10 +266,37 @@ def about():
     return render_template("about.html", year=year)
 
 
-@app.route("/contact")
+@app.route("/contact", methods=["GET", "POST"])
 def contact():
-    return render_template("contact.html", year=year)
+    
+    if request.method == "POST":
+        inputs = request.form
+        name = inputs['name']
+        email = inputs['email']
+        phone = inputs['phone']
+        message =inputs['message']
+        date = datetime.now()
+        
+        f_message = f"Name: {name}\nEmail: {email}\nPhone: {phone}\nMessage: {message}\nDate/Time: {date}"
+        
+        message_final = f"Subject:Blog_inquiry from {name}\n\n{f_message}"
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as connection:
+            connection.starttls()
+            connection.login(user=MY_EMAIL, password=EMAIL_PASS)
+            connection.sendmail(
+                from_addr=MY_EMAIL,
+                to_addrs=EMAIL_RECEIVER,
+                msg=message_final.encode("utf-8"),
+            )
+            
+            print("Email sent!")
+        
+        return render_template("contact.html", year=year, req=request.method)
+    
+    else:
+        return render_template("contact.html", year=year, req=request.method)
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5002)
+    app.run(debug=False)
