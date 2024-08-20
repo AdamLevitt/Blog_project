@@ -170,6 +170,6 @@ dmypy.json
 cython_debug/
 
 #Other
-requirements-temp.txt
+requirements-temp*.txt
 notes.txt
 
