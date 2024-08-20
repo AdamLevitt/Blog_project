@@ -12,9 +12,15 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from typing import List
 from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm
 from datetime import datetime
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY")
+DB_URI = os.getenv("DB_URI")
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "8BYkEfBA6O6donzWlSihBXox7C0sKR6b"
+app.config["SECRET_KEY"] = SECRET_KEY
 ckeditor = CKEditor(app)
 Bootstrap5(app)
 
@@ -28,14 +34,16 @@ login_manager.init_app(app)
 def load_user(user_id):
     return db.get_or_404(User, user_id)
 
+
 year = datetime.now().year
+
 
 # CREATE DATABASE
 class Base(DeclarativeBase):
     pass
 
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///blog.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = DB_URI
 db = SQLAlchemy(model_class=Base)
 db.init_app(app)
 
